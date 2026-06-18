@@ -1,0 +1,31 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: qui-transmission-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: qui_transmission
+      POSTGRES_PASSWORD: qui_transmission
+      POSTGRES_DB: qui_transmission
+    volumes:
+      - ./postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  qui-transmission:
+    image: ghcr.io/fullerhkz/qui-transmission:latest
+    container_name: qui-transmission
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "7476:7476"
+    volumes:
+      - ./qui-transmission:/config
+    environment:
+      QUI__DATABASE_ENGINE: postgres
+      QUI__DATABASE_DSN: postgres://qui_transmission:qui_transmission@postgres:5432/qui_transmission?sslmode=disable

@@ -1,0 +1,10 @@
+services:
+  qui-transmission:
+    image: ghcr.io/fullerhkz/qui-transmission:latest
+    container_name: qui-transmission
+    restart: unless-stopped
+    ports:
+      - "7476:7476"
+    volumes:
+      - ./qui-transmission:/config
+    #environment:
