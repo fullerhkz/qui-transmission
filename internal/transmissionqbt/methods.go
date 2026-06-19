@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"math"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -612,9 +613,26 @@ func normalizeTransmissionKeys(value interface{}) interface{} {
 			typed[i] = normalizeTransmissionKeys(item)
 		}
 		return typed
+	case json.Number:
+		return normalizeTransmissionNumber(typed)
 	default:
 		return value
 	}
+}
+
+func normalizeTransmissionNumber(value json.Number) interface{} {
+	if i, err := value.Int64(); err == nil {
+		return i
+	}
+
+	f, err := strconv.ParseFloat(value.String(), 64)
+	if err != nil {
+		return value
+	}
+	if math.Trunc(f) == f && f >= math.MinInt64 && f <= math.MaxInt64 {
+		return int64(f)
+	}
+	return value
 }
 
 func transmissionKeyToSnake(key string) string {

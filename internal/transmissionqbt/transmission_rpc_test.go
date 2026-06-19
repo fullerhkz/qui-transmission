@@ -164,9 +164,9 @@ func TestNormalizeClassicTransmissionRequestNames(t *testing.T) {
 		"seed_ratio_limit":   2.0,
 		"idle_seeding_limit": 60,
 	}, map[string]interface{}{
-		"speed-limit-down":    100,
-		"seedRatioLimit":      2.0,
-		"idle-seeding-limit":  60,
+		"speed-limit-down":   100,
+		"seedRatioLimit":     2.0,
+		"idle-seeding-limit": 60,
 	})
 
 	requireNormalizedKeys(t, "torrent_add", map[string]interface{}{
@@ -176,11 +176,11 @@ func TestNormalizeClassicTransmissionRequestNames(t *testing.T) {
 		"files_wanted":        []interface{}{0.0, 1.0},
 		"sequential_download": true,
 	}, map[string]interface{}{
-		"download-dir":        "/downloads",
-		"peer-limit":          80,
-		"bandwidthPriority":   1,
-		"files-wanted":        []interface{}{0.0, 1.0},
-		"sequentialDownload":  true,
+		"download-dir":       "/downloads",
+		"peer-limit":         80,
+		"bandwidthPriority":  1,
+		"files-wanted":       []interface{}{0.0, 1.0},
+		"sequentialDownload": true,
 	})
 
 	requireNormalizedKeys(t, "torrent_set", map[string]interface{}{
@@ -189,10 +189,10 @@ func TestNormalizeClassicTransmissionRequestNames(t *testing.T) {
 		"tracker_list":        "https://tracker.example/announce",
 		"sequential_download": true,
 	}, map[string]interface{}{
-		"peer-limit":          80,
-		"downloadLimit":       1024,
-		"trackerList":         "https://tracker.example/announce",
-		"sequentialDownload":  true,
+		"peer-limit":         80,
+		"downloadLimit":      1024,
+		"trackerList":        "https://tracker.example/announce",
+		"sequentialDownload": true,
 	})
 
 	requireNormalizedKeys(t, "torrent_get", map[string]interface{}{
@@ -275,6 +275,28 @@ func TestClient_LoginAcceptsClassicTransmissionResponse(t *testing.T) {
 	}
 	if len(*calls) != 1 {
 		t.Fatalf("rpc calls = %d, want 1", len(*calls))
+	}
+}
+
+func TestClient_SessionAcceptsIntegralFloatNumbers(t *testing.T) {
+	server, _ := newClassicTransmissionRPCServer(t, func(call capturedRPC) any {
+		if call.Method != "session-get" {
+			t.Fatalf("method = %q, want session-get", call.Method)
+		}
+		return map[string]any{
+			"speed-limit-down":         json.RawMessage(`100.0`),
+			"speed-limit-down-enabled": true,
+		}
+	})
+	defer server.Close()
+
+	client := NewClient(Config{Host: server.URL})
+	got, err := client.GetGlobalDownloadLimitCtx(context.Background())
+	if err != nil {
+		t.Fatalf("GetGlobalDownloadLimitCtx() error = %v", err)
+	}
+	if got != 100000 {
+		t.Fatalf("GetGlobalDownloadLimitCtx() = %d, want 100000", got)
 	}
 }
 
