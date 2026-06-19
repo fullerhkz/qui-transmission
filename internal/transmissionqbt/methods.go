@@ -34,10 +34,11 @@ type rpcRequest struct {
 }
 
 type rpcResponse struct {
-	JSONRPC string          `json:"jsonrpc,omitempty"`
-	Result  json.RawMessage `json:"result,omitempty"`
-	Error   *rpcError       `json:"error,omitempty"`
-	ID      int64           `json:"id,omitempty"`
+	JSONRPC   string          `json:"jsonrpc,omitempty"`
+	Result    json.RawMessage `json:"result,omitempty"`
+	Arguments json.RawMessage `json:"arguments,omitempty"`
+	Error     *rpcError       `json:"error,omitempty"`
+	ID        int64           `json:"id,omitempty"`
 }
 
 type rpcError struct {
@@ -401,7 +402,7 @@ func (c *Client) rpcCall(ctx context.Context, method string, params interface{},
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
 		return errors.Wrap(ErrUnexpectedStatus, "transmission rpc %s returned status code %d", method, resp.StatusCode)
 	}
-	if resp.StatusCode == http.StatusNoContent || out == nil {
+	if resp.StatusCode == http.StatusNoContent {
 		return nil
 	}
 
@@ -416,13 +417,85 @@ func (c *Client) rpcCall(ctx context.Context, method string, params interface{},
 		}
 		return errors.New("transmission rpc %s failed: %s", method, msg)
 	}
+	if msg, ok := rpcResultString(rpcResp.Result); ok && !strings.EqualFold(msg, "success") {
+		return errors.New("transmission rpc %s failed: %s", method, msg)
+	}
 	if out == nil {
 		return nil
+	}
+	if len(rpcResp.Arguments) > 0 && string(rpcResp.Arguments) != "null" {
+		return unmarshalTransmissionPayload(rpcResp.Arguments, out)
 	}
 	if len(rpcResp.Result) == 0 || string(rpcResp.Result) == "null" {
 		return nil
 	}
-	return json.Unmarshal(rpcResp.Result, out)
+	if _, ok := rpcResultString(rpcResp.Result); ok {
+		return nil
+	}
+	return unmarshalTransmissionPayload(rpcResp.Result, out)
+}
+
+func rpcResultString(raw json.RawMessage) (string, bool) {
+	var msg string
+	if err := json.Unmarshal(raw, &msg); err != nil {
+		return "", false
+	}
+	return msg, true
+}
+
+func unmarshalTransmissionPayload(raw json.RawMessage, out interface{}) error {
+	var value interface{}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	if err := decoder.Decode(&value); err != nil {
+		return err
+	}
+
+	normalized, err := json.Marshal(normalizeTransmissionKeys(value))
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(normalized, out)
+}
+
+func normalizeTransmissionKeys(value interface{}) interface{} {
+	switch typed := value.(type) {
+	case map[string]interface{}:
+		normalized := make(map[string]interface{}, len(typed))
+		for key, item := range typed {
+			normalized[transmissionKeyToSnake(key)] = normalizeTransmissionKeys(item)
+		}
+		return normalized
+	case []interface{}:
+		for i, item := range typed {
+			typed[i] = normalizeTransmissionKeys(item)
+		}
+		return typed
+	default:
+		return value
+	}
+}
+
+func transmissionKeyToSnake(key string) string {
+	if key == "" {
+		return key
+	}
+
+	key = strings.ReplaceAll(key, "-", "_")
+	var builder strings.Builder
+	builder.Grow(len(key) + 4)
+	var prev rune
+	for i, r := range key {
+		if r >= 'A' && r <= 'Z' {
+			if i > 0 && prev != '_' {
+				builder.WriteByte('_')
+			}
+			r += 'a' - 'A'
+		}
+		builder.WriteRune(r)
+		prev = r
+	}
+	return builder.String()
 }
 
 func (c *Client) doRPCRequest(ctx context.Context, body []byte) (*http.Response, error) {
