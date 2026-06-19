@@ -92,7 +92,7 @@ jobs:
             --username ci \
             --password ci-password-123
 
-          SQLITE_DB="$MIGRATION_TMPDIR/qui.db"
+          SQLITE_DB="$MIGRATION_TMPDIR/qui-transmission.db"
           test -f "$SQLITE_DB"
 
           # Seed one orphan feed item intentionally; migration should filter it.
@@ -113,7 +113,7 @@ jobs:
             -c "CREATE DATABASE qui_migration_ci;"
 
           go run ./cmd/qui-transmission db migrate \
-            --from-sqlite "$MIGRATION_TMPDIR/qui.db" \
+            --from-sqlite "$MIGRATION_TMPDIR/qui-transmission.db" \
             --to-postgres "$PG_MIGRATION_DSN" \
             --apply \
             | tee "$MIGRATION_TMPDIR/migrate.log"
@@ -121,7 +121,7 @@ jobs:
       - name: Validate schema parity + expected filtered rows
         run: |
           set -euo pipefail
-          SQLITE_DB="$MIGRATION_TMPDIR/qui.db"
+          SQLITE_DB="$MIGRATION_TMPDIR/qui-transmission.db"
           DIAG_TSV="$MIGRATION_TMPDIR/migration-counts.tsv"
           DIAG_SCHEMA="$MIGRATION_TMPDIR/migration-schema.tsv"
           DIAG_CROSSSEED="$MIGRATION_TMPDIR/cross-seed-diagnostics.txt"
