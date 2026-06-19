@@ -406,6 +406,46 @@ func TestClient_GetTorrentsAcceptsClassicCamelCaseFields(t *testing.T) {
 	}
 }
 
+func TestClient_GetTorrentsAcceptsNumericBoolFields(t *testing.T) {
+	server, _ := newClassicTransmissionRPCServer(t, func(call capturedRPC) any {
+		if call.Method != "torrent-get" {
+			t.Fatalf("method = %q, want torrent-get", call.Method)
+		}
+		return map[string]any{
+			"torrents": []map[string]any{
+				{
+					"hashString":          "abc123",
+					"name":                "example",
+					"downloadLimited":     1,
+					"honorsSessionLimits": 1,
+					"isFinished":          0,
+					"isPrivate":           1,
+					"isStalled":           0,
+					"sequentialDownload":  1,
+					"uploadLimited":       0,
+					"wanted":              []any{1, 0},
+					"fileStats": []map[string]any{
+						{"wanted": 1},
+					},
+				},
+			},
+		}
+	})
+	defer server.Close()
+
+	client := NewClient(Config{Host: server.URL})
+	torrents, err := client.GetTorrentsCtx(context.Background(), TorrentFilterOptions{})
+	if err != nil {
+		t.Fatalf("GetTorrentsCtx() error = %v", err)
+	}
+	if len(torrents) != 1 {
+		t.Fatalf("torrents = %d, want 1", len(torrents))
+	}
+	if !torrents[0].Private || !torrents[0].SequentialDownload {
+		t.Fatalf("numeric bool fields were not mapped: %#v", torrents[0])
+	}
+}
+
 func TestClient_SetGroupLabelsAndCommentUseTorrentSet(t *testing.T) {
 	var methods []capturedRPC
 	server, _ := newTransmissionRPCServer(t, func(call capturedRPC) any {
