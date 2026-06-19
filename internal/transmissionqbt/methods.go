@@ -27,10 +27,9 @@ import (
 var rpcRequestID atomic.Int64
 
 type rpcRequest struct {
-	JSONRPC string      `json:"jsonrpc"`
-	Method  string      `json:"method"`
-	Params  interface{} `json:"params,omitempty"`
-	ID      int64       `json:"id"`
+	Method    string      `json:"method"`
+	Arguments interface{} `json:"arguments,omitempty"`
+	Tag       int64       `json:"tag,omitempty"`
 }
 
 type rpcResponse struct {
@@ -381,10 +380,9 @@ func (c *Client) rpcURL() string {
 
 func (c *Client) rpcCall(ctx context.Context, method string, params interface{}, out interface{}) error {
 	body, err := json.Marshal(rpcRequest{
-		JSONRPC: "2.0",
-		Method:  method,
-		Params:  params,
-		ID:      rpcRequestID.Add(1),
+		Method:    transmissionMethodName(method),
+		Arguments: normalizeTransmissionRequest(method, params),
+		Tag:       rpcRequestID.Add(1),
 	})
 	if err != nil {
 		return err
@@ -433,6 +431,149 @@ func (c *Client) rpcCall(ctx context.Context, method string, params interface{},
 		return nil
 	}
 	return unmarshalTransmissionPayload(rpcResp.Result, out)
+}
+
+func transmissionMethodName(method string) string {
+	return strings.ReplaceAll(method, "_", "-")
+}
+
+func normalizeTransmissionRequest(method string, params interface{}) interface{} {
+	return normalizeTransmissionRequestValue(method, "", params)
+}
+
+func normalizeTransmissionRequestValue(method, key string, value interface{}) interface{} {
+	switch typed := value.(type) {
+	case map[string]interface{}:
+		normalized := make(map[string]interface{}, len(typed))
+		for itemKey, item := range typed {
+			normalized[transmissionRequestKey(method, itemKey)] = normalizeTransmissionRequestValue(method, itemKey, item)
+		}
+		return normalized
+	case []string:
+		if key == "fields" {
+			return transmissionRequestFields(method, typed)
+		}
+		return typed
+	case []interface{}:
+		for i, item := range typed {
+			typed[i] = normalizeTransmissionRequestValue(method, key, item)
+		}
+		return typed
+	default:
+		return value
+	}
+}
+
+func transmissionRequestKey(method, key string) string {
+	switch method {
+	case "session_get":
+		return key
+	case "session_set":
+		return sessionRequestKey(key)
+	case "free_space":
+		return key
+	case "torrent_remove":
+		return snakeToHyphen(key)
+	case "torrent_add":
+		return torrentAddRequestKey(key)
+	case "torrent_set":
+		return torrentSetRequestKey(key)
+	case "group_set":
+		return groupSetRequestKey(key)
+	default:
+		return key
+	}
+}
+
+func transmissionRequestFields(method string, fields []string) []string {
+	converted := make([]string, len(fields))
+	for i, field := range fields {
+		switch method {
+		case "session_get":
+			converted[i] = sessionRequestKey(field)
+		case "torrent_get":
+			converted[i] = torrentGetField(field)
+		default:
+			converted[i] = field
+		}
+	}
+	return converted
+}
+
+func sessionRequestKey(key string) string {
+	switch key {
+	case "seed_ratio_limit":
+		return "seedRatioLimit"
+	case "seed_ratio_limited":
+		return "seedRatioLimited"
+	default:
+		return snakeToHyphen(key)
+	}
+}
+
+func torrentAddRequestKey(key string) string {
+	switch key {
+	case "ids", "fields", "filename", "metainfo", "paused", "labels", "group", "comment", "location", "move", "path", "name":
+		return key
+	case "download_dir", "peer_limit", "files_unwanted", "files_wanted", "priority_low", "priority_normal", "priority_high":
+		return snakeToHyphen(key)
+	default:
+		return snakeToLowerCamel(key)
+	}
+}
+
+func torrentSetRequestKey(key string) string {
+	switch key {
+	case "ids", "fields", "filename", "metainfo", "paused", "labels", "group", "comment", "location", "move", "path", "name":
+		return key
+	case "peer_limit", "files_unwanted", "files_wanted", "priority_low", "priority_normal", "priority_high":
+		return snakeToHyphen(key)
+	default:
+		return snakeToLowerCamel(key)
+	}
+}
+
+func groupSetRequestKey(key string) string {
+	switch key {
+	case "honors_session_limits":
+		return "honorsSessionLimits"
+	default:
+		return snakeToHyphen(key)
+	}
+}
+
+func torrentGetField(field string) string {
+	switch field {
+	case "file_count", "peer_limit", "primary_mime_type":
+		return snakeToHyphen(field)
+	default:
+		return snakeToLowerCamel(field)
+	}
+}
+
+func snakeToHyphen(value string) string {
+	return strings.ReplaceAll(value, "_", "-")
+}
+
+func snakeToLowerCamel(value string) string {
+	if value == "" || !strings.Contains(value, "_") {
+		return value
+	}
+	var builder strings.Builder
+	builder.Grow(len(value))
+	upperNext := false
+	for _, r := range value {
+		if r == '_' {
+			upperNext = true
+			continue
+		}
+		if upperNext && r >= 'a' && r <= 'z' {
+			r -= 'a' - 'A'
+		}
+		builder.WriteRune(r)
+		upperNext = false
+	}
+	return builder.String()
 }
 
 func rpcResultString(raw json.RawMessage) (string, bool) {
