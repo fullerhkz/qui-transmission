@@ -5,16 +5,16 @@ before:
     - go mod tidy
 
 builds:
-  - id: qui
+  - id: qui-transmission
     env:
       - CGO_ENABLED=0
     flags:
       - -trimpath
     ldflags:
       - -s -w
-      - -X github.com/autobrr/qui/internal/buildinfo.Version={{.Version}}
-      - -X github.com/autobrr/qui/internal/buildinfo.Date={{.Date}}
-      - -X github.com/autobrr/qui/internal/buildinfo.Commit={{.Commit}}
+      - -X github.com/fullerhkz/qui-transmission/internal/buildinfo.Version={{.Version}}
+      - -X github.com/fullerhkz/qui-transmission/internal/buildinfo.Date={{.Date}}
+      - -X github.com/fullerhkz/qui-transmission/internal/buildinfo.Commit={{.Commit}}
       - -X main.PolarOrgID={{.Env.POLAR_ORG_ID}}
     goos:
       - linux
@@ -38,13 +38,13 @@ builds:
         goarch: arm
       - goos: freebsd
         goarch: arm64
-    main: ./cmd/qui
-    binary: qui
+    main: ./cmd/qui-transmission
+    binary: qui-transmission
 
 archives:
-  - id: qui-archive
+  - id: qui-transmission-archive
     ids:
-      - qui
+      - qui-transmission
     format_overrides:
       - goos: windows
         formats: ['zip']
@@ -58,19 +58,17 @@ archives:
 release:
   prerelease: auto
   footer: |
-    **Full Changelog**: https://github.com/{{ .Env.GITHUB_REPOSITORY_OWNER }}/qui/compare/{{ .PreviousTag }}...{{ .Tag }}
+    **Full Changelog**: https://github.com/{{ .Env.GITHUB_REPOSITORY_OWNER }}/qui-transmission/compare/{{ .PreviousTag }}...{{ .Tag }}
 
     ## Docker images
 
-    - `docker pull ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/qui:{{ .Tag }}`
-    - `docker pull ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/qui:latest`
+    - `docker pull ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/qui-transmission:{{ .Tag }}`
+    - `docker pull ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/qui-transmission:latest`
 
 
     ## What to do next?
 
-    - Join our [Discord server](https://discord.autobrr.com/qui)
-
-    Thank you for using qui!
+    Thank you for using qui-Transmission!
 
 checksum:
   name_template: "checksums.txt"

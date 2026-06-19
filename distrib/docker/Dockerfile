@@ -32,6 +32,8 @@ WORKDIR /app
 
 # Copy go mod files
 COPY go.mod go.sum ./
+RUN mkdir -p internal/transmissionqbt
+COPY internal/transmissionqbt/go.mod ./internal/transmissionqbt/go.mod
 RUN go mod download
 
 # Copy source code

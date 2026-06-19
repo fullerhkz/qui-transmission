@@ -10,12 +10,12 @@ function HeroSection() {
       <div className={styles.heroContent}>
         <img
           src="/img/qui.png"
-          alt="qui logo"
+          alt="qui-Transmission logo"
           className={styles.heroLogo}
         />
-        <h1 className={styles.heroTitle}>qui</h1>
+        <h1 className={styles.heroTitle}>qui-Transmission</h1>
         <p className={styles.heroTagline}>
-          Modern web interface for qBittorrent
+          Modern web interface for Transmission
         </p>
         <div className={styles.heroButtons}>
           <Link
@@ -43,7 +43,7 @@ function ScreenshotSection() {
       <div className={styles.screenshotContainer}>
         <img
           src="/img/qui-hero.png"
-          alt="qui interface screenshot"
+          alt="qui-Transmission interface screenshot"
           className={styles.screenshotImage}
         />
       </div>
@@ -61,7 +61,7 @@ type FeatureItem = {
 const features: FeatureItem[] = [
   {
     title: "Multi-Instance",
-    description: "Manage all your qBittorrent instances from one place",
+    description: "Manage all your Transmission instances from one place",
     icon: <ServerIcon />,
     link: "/docs/intro",
   },

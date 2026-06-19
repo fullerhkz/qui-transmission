@@ -17,7 +17,7 @@ endif
 # Variables
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 GIT_COMMIT := $(shell git rev-parse HEAD 2> /dev/null)
-GIT_TAG := $(shell git describe --abbrev=0 --tags)
+GIT_TAG := $(shell git describe --abbrev=0 --tags 2>/dev/null || echo "")
 BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 BINARY_NAME = qui-transmission
 BUILD_DIR = build
@@ -124,7 +124,7 @@ test-openapi:
 # Format changed code only (fast, for iteration)
 fmt:
 	@echo "Formatting changed Go code..."
-	@gofiles=$$({ git diff --name-only --diff-filter=d; git diff --name-only --cached --diff-filter=d; } | sort -u | grep '\.go$$' || true); \
+	@gofiles=$$({ git diff --name-only --diff-filter=d; git diff --name-only --cached --diff-filter=d; } | sort -u | grep '\.go$$' | grep -v '^internal/transmissionqbt/' || true); \
 		if [ -n "$$gofiles" ]; then echo "$$gofiles" | xargs gofmt -w; fi
 	@echo "Formatting changed frontend code..."
 	@webfiles=$$({ git diff --name-only --diff-filter=d -- '$(WEB_DIR)/'; git diff --name-only --cached --diff-filter=d -- '$(WEB_DIR)/'; } | sort -u | sed 's|^$(WEB_DIR)/||' | grep -E '\.(ts|tsx|js|jsx)$$' || true); \
@@ -162,7 +162,7 @@ gofix-changed:
 gofix-check-changed:
 	@echo "Checking go fix drift on changed Go files..."
 	@tmp=$$(mktemp); \
-		gofiles=$$({ git diff --name-only --diff-filter=d; git diff --name-only --cached --diff-filter=d; } | sort -u | grep '\.go$$' || true); \
+		gofiles=$$({ git diff --name-only --diff-filter=d; git diff --name-only --cached --diff-filter=d; } | sort -u | grep '\.go$$' | grep -v '^internal/transmissionqbt/' || true); \
 		if [ -z "$$gofiles" ]; then \
 			rm -f "$$tmp"; \
 			echo "No changed Go files for go fix check."; \
@@ -190,7 +190,13 @@ precommit: fmt gofix-changed lint
 # Lint code (changed files only - fast feedback for AI iteration)
 lint:
 	@echo "Linting changed Go code..."
-	golangci-lint run --new-from-merge-base=develop --timeout=5m
+	@base_ref=$$(git merge-base main HEAD 2>/dev/null || true); \
+		empty_tree=$$(git hash-object -t tree /dev/null); \
+		if [ -n "$$base_ref" ] && [ "$$(git rev-parse "$$base_ref^{tree}")" = "$$empty_tree" ]; then \
+			echo "Skipping Go lint for initial import against empty main."; \
+		else \
+			golangci-lint run --new-from-merge-base=main --timeout=5m; \
+		fi
 	@echo "Linting frontend..."
 	cd $(WEB_DIR) && pnpm lint
 

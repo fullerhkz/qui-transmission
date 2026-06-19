@@ -1,6 +1,7 @@
 package ttlcache
 
 import (
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -176,10 +177,10 @@ func TestDelete(t *testing.T) {
 
 func TestDeallocationTimeout(t *testing.T) {
 	t.Parallel()
-	hit := false
+	var hit atomic.Bool
 	o := Options[int, bool]{}.
 		SetDefaultTTL(time.Millisecond * 100).
-		SetDeallocationFunc(func(key int, value bool, reason DeallocationReason) { hit = reason == ReasonTimedOut })
+		SetDeallocationFunc(func(key int, value bool, reason DeallocationReason) { hit.Store(reason == ReasonTimedOut) })
 
 	c := New[int, bool](o)
 	defer c.Close()
@@ -189,17 +190,17 @@ func TestDeallocationTimeout(t *testing.T) {
 	}
 
 	time.Sleep(3 * time.Second)
-	if !hit {
+	if !hit.Load() {
 		t.Fatalf("Deallocation not hit.")
 	}
 }
 
 func TestDeallocationDeleted(t *testing.T) {
 	t.Parallel()
-	hit := false
+	var hit atomic.Bool
 	o := Options[int, bool]{}.
 		SetDefaultTTL(time.Millisecond * 100).
-		SetDeallocationFunc(func(key int, value bool, reason DeallocationReason) { hit = reason == ReasonDeleted })
+		SetDeallocationFunc(func(key int, value bool, reason DeallocationReason) { hit.Store(reason == ReasonDeleted) })
 
 	c := New[int, bool](o)
 	defer c.Close()
@@ -209,7 +210,7 @@ func TestDeallocationDeleted(t *testing.T) {
 		c.Delete(i)
 	}
 
-	if !hit {
+	if !hit.Load() {
 		t.Fatalf("Deallocation not hit.")
 	}
 }

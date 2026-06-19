@@ -85,8 +85,8 @@ jobs:
           rm -rf "$MIGRATION_TMPDIR"
           mkdir -p "$MIGRATION_TMPDIR"
 
-          go run ./cmd/qui generate-config --config-dir "$MIGRATION_TMPDIR"
-          go run ./cmd/qui create-user \
+          go run ./cmd/qui-transmission generate-config --config-dir "$MIGRATION_TMPDIR"
+          go run ./cmd/qui-transmission create-user \
             --config-dir "$MIGRATION_TMPDIR" \
             --data-dir "$MIGRATION_TMPDIR" \
             --username ci \
@@ -112,7 +112,7 @@ jobs:
             -c "DROP DATABASE IF EXISTS qui_migration_ci;" \
             -c "CREATE DATABASE qui_migration_ci;"
 
-          go run ./cmd/qui db migrate \
+          go run ./cmd/qui-transmission db migrate \
             --from-sqlite "$MIGRATION_TMPDIR/qui.db" \
             --to-postgres "$PG_MIGRATION_DSN" \
             --apply \

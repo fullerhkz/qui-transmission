@@ -36,7 +36,7 @@ Make sure you have the following dependencies installed before setting up your d
   - Checkout a new branch for your fix or feature `git checkout -b fix/torrent-actions-issue`
 - **Coding:** Ensure your code is well-commented for clarity. With go use `go fmt`
 - **Commit Guidelines:** We appreciate the use of [Conventional Commit Guidelines](https://www.conventionalcommits.org/en/v1.0.0/#summary) when writing your commits.
-  - Examples: `fix(qbittorrent): improve connection pooling`, `feat(torrent): add bulk actions`
+  - Examples: `fix(transmission): improve connection pooling`, `feat(torrent): add bulk actions`
   - There is no need for force pushing or rebasing. We squash commits on merge to keep the history clean and manageable.
 - **Pull Requests:** Open a pull request with a clear description of your changes. Reference any related issues.
   - Mark it as Draft if it's still in progress.

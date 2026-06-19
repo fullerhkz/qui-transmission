@@ -794,7 +794,7 @@ function InstanceCard({
               )}
               {appVersion && (
                 <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">
-                  qBit {appVersion}
+                  Transmission {appVersion}
                 </Badge>
               )}
               {webAPIVersion && (

@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -174,9 +175,13 @@ func cloneFile(src, dst string) (retErr error) {
 		return fmt.Errorf("create destination: %w", err)
 	}
 	defer func() {
-		_ = dstFile.Close()
+		if closeErr := dstFile.Close(); closeErr != nil && retErr == nil {
+			retErr = fmt.Errorf("close destination: %w", closeErr)
+		}
 		if retErr != nil {
-			_ = os.Remove(dst)
+			if removeErr := removePartialDestination(dst); removeErr != nil {
+				retErr = fmt.Errorf("%w (cleanup destination: %v)", retErr, removeErr)
+			}
 		}
 	}()
 
@@ -210,6 +215,19 @@ func cloneFile(src, dst string) (retErr error) {
 	}
 
 	return nil
+}
+
+func removePartialDestination(path string) error {
+	var err error
+	for attempt := range 5 {
+		err = os.Remove(path)
+		if err == nil || errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		time.Sleep(time.Duration(attempt+1) * 10 * time.Millisecond)
+	}
+
+	return err
 }
 
 func resolveSourcePath(src string) (string, error) {

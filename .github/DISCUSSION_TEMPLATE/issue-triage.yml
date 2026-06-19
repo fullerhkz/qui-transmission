@@ -16,7 +16,7 @@ body:
         - What happened?
         - What did you expect to happen?
       placeholder: |
-        When I try to add a qBittorrent instance, I get "connection refused" even though qBittorrent is running and accessible in my browser.
+        When I try to add a Transmission instance, I get "connection refused" even though Transmission is running and accessible in my browser.
     validations:
       required: true
 
@@ -37,13 +37,13 @@ body:
       description: |
         Please provide:
         - qui version (`qui version` or from the UI footer)
-        - qBittorrent version(s)
+        - Transmission version(s)
         - Deployment method (Docker, binary, seedbox installer)
         - OS (if relevant)
         - Reverse proxy / OIDC setup (if relevant to the issue)
       placeholder: |
         - qui: 1.11.0
-        - qBittorrent: 5.1.2
+        - Transmission: 4.1.2
         - Unraid OS 7.2.3
       render: text
     validations:

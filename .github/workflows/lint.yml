@@ -51,9 +51,22 @@ jobs:
           go-version-file: "go.mod"
           cache: true
 
-      - name: Check gofix drift on changed Go files
+      - name: Detect initial import
+        id: initial_import
         run: |
-          gofiles=$({ git diff --name-only --diff-filter=d "origin/${{ github.base_ref }}"...HEAD; } | sort -u | grep '\.go$' || true)
+          base_tree=$(git rev-parse "origin/${{ github.base_ref }}^{tree}")
+          empty_tree=$(git hash-object -t tree /dev/null)
+          if [ "$base_tree" = "$empty_tree" ]; then
+            echo "skip_go_lint=true" >> "$GITHUB_OUTPUT"
+            echo "Initial import against an empty base; skipping changed-file Go lint."
+          else
+            echo "skip_go_lint=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check gofix drift on changed Go files
+        if: steps.initial_import.outputs.skip_go_lint != 'true'
+        run: |
+          gofiles=$({ git diff --name-only --diff-filter=d "origin/${{ github.base_ref }}"...HEAD; } | sort -u | grep '\.go$' | grep -v '^internal/transmissionqbt/' || true)
           if [ -z "$gofiles" ]; then
             echo "No backend files to check with go fix."
             exit 0
@@ -93,6 +106,7 @@ jobs:
           echo "go fix check clean."
 
       - name: Lint backend
+        if: steps.initial_import.outputs.skip_go_lint != 'true'
         uses: golangci/golangci-lint-action@v9.2.1
         with:
           version: v2.11.1
