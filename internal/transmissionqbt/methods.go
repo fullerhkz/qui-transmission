@@ -601,22 +601,96 @@ func unmarshalTransmissionPayload(raw json.RawMessage, out interface{}) error {
 }
 
 func normalizeTransmissionKeys(value interface{}) interface{} {
+	return normalizeTransmissionValue("", value)
+}
+
+func normalizeTransmissionValue(key string, value interface{}) interface{} {
 	switch typed := value.(type) {
 	case map[string]interface{}:
 		normalized := make(map[string]interface{}, len(typed))
-		for key, item := range typed {
-			normalized[transmissionKeyToSnake(key)] = normalizeTransmissionKeys(item)
+		for itemKey, item := range typed {
+			normalizedKey := transmissionKeyToSnake(itemKey)
+			normalized[normalizedKey] = normalizeTransmissionValue(normalizedKey, item)
 		}
 		return normalized
 	case []interface{}:
 		for i, item := range typed {
-			typed[i] = normalizeTransmissionKeys(item)
+			typed[i] = normalizeTransmissionValue(key, item)
 		}
 		return typed
 	case json.Number:
+		if boolValue, ok := normalizeTransmissionBoolNumber(key, typed); ok {
+			return boolValue
+		}
 		return normalizeTransmissionNumber(typed)
 	default:
 		return value
+	}
+}
+
+var transmissionBoolFields = map[string]struct{}{
+	"alt_speed_enabled":            {},
+	"blocklist_enabled":            {},
+	"dht_enabled":                  {},
+	"download_limited":             {},
+	"download_queue_enabled":       {},
+	"has_announced":                {},
+	"has_scraped":                  {},
+	"honors_session_limits":        {},
+	"idle_seeding_limit_enabled":   {},
+	"incomplete_dir_enabled":       {},
+	"is_backup":                    {},
+	"is_downloading_from":          {},
+	"is_encrypted":                 {},
+	"is_finished":                  {},
+	"is_incoming":                  {},
+	"is_private":                   {},
+	"is_stalled":                   {},
+	"is_uploading_to":              {},
+	"is_utp":                       {},
+	"last_announce_succeeded":      {},
+	"last_announce_timed_out":      {},
+	"last_scrape_succeeded":        {},
+	"last_scrape_timed_out":        {},
+	"lpd_enabled":                  {},
+	"pex_enabled":                  {},
+	"port_forwarding_enabled":      {},
+	"queue_stalled_enabled":        {},
+	"rename_partial_files":         {},
+	"script_torrent_added_enabled": {},
+	"seed_queue_enabled":           {},
+	"seed_ratio_limited":           {},
+	"sequential_download":          {},
+	"speed_limit_down_enabled":     {},
+	"speed_limit_up_enabled":       {},
+	"start_added_torrents":         {},
+	"trash_original_torrent_files": {},
+	"upload_limited":               {},
+	"utp_enabled":                  {},
+	"wanted":                       {},
+}
+
+func normalizeTransmissionBoolNumber(key string, value json.Number) (bool, bool) {
+	if _, ok := transmissionBoolFields[key]; !ok {
+		return false, false
+	}
+
+	i, err := value.Int64()
+	if err != nil {
+		f, parseErr := strconv.ParseFloat(value.String(), 64)
+		if parseErr != nil || math.Trunc(f) != f || f < math.MinInt64 || f > math.MaxInt64 {
+			return false, false
+		}
+		i = int64(f)
+	}
+
+	switch i {
+	case 0:
+		return false, true
+	case 1:
+		return true, true
+	default:
+		return false, false
 	}
 }
 
