@@ -40,20 +40,16 @@ func newTransmissionRPCServer(t *testing.T, handler func(capturedRPC) any) (*htt
 		}
 
 		var req struct {
-			JSONRPC string                     `json:"jsonrpc"`
-			Method  string                     `json:"method"`
-			Params  map[string]json.RawMessage `json:"params"`
-			ID      int64                      `json:"id"`
+			Method    string                     `json:"method"`
+			Arguments map[string]json.RawMessage `json:"arguments"`
+			Tag       int64                      `json:"tag"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Fatalf("decode request: %v", err)
 		}
-		if req.JSONRPC != "2.0" {
-			t.Fatalf("jsonrpc = %q, want 2.0", req.JSONRPC)
-		}
 
 		auth := r.Header.Get("Authorization")
-		call := capturedRPC{Method: req.Method, Params: req.Params, Auth: auth}
+		call := capturedRPC{Method: req.Method, Params: req.Arguments, Auth: auth}
 		calls = append(calls, call)
 		result := handler(call)
 		if result == nil {
@@ -63,7 +59,7 @@ func newTransmissionRPCServer(t *testing.T, handler func(capturedRPC) any) (*htt
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"jsonrpc": "2.0",
-			"id":      req.ID,
+			"id":      req.Tag,
 			"result":  result,
 		})
 	}))
@@ -95,15 +91,15 @@ func newClassicTransmissionRPCServer(t *testing.T, handler func(capturedRPC) any
 		}
 
 		var req struct {
-			Method string                     `json:"method"`
-			Params map[string]json.RawMessage `json:"params"`
+			Method    string                     `json:"method"`
+			Arguments map[string]json.RawMessage `json:"arguments"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Fatalf("decode request: %v", err)
 		}
 
 		auth := r.Header.Get("Authorization")
-		call := capturedRPC{Method: req.Method, Params: req.Params, Auth: auth}
+		call := capturedRPC{Method: req.Method, Params: req.Arguments, Auth: auth}
 		calls = append(calls, call)
 		result := handler(call)
 		if result == nil {
@@ -144,10 +140,78 @@ func requireJSONStringSlice(t *testing.T, params map[string]json.RawMessage, key
 	}
 }
 
+func requireNormalizedKeys(t *testing.T, method string, params map[string]interface{}, want map[string]interface{}) {
+	t.Helper()
+
+	normalized, ok := normalizeTransmissionRequest(method, params).(map[string]interface{})
+	if !ok {
+		t.Fatalf("normalized request has type %T, want map[string]interface{}", normalized)
+	}
+	for key, value := range want {
+		got, ok := normalized[key]
+		if !ok {
+			t.Fatalf("normalized request missing key %q: %#v", key, normalized)
+		}
+		if !reflect.DeepEqual(got, value) {
+			t.Fatalf("normalized[%q] = %#v, want %#v", key, got, value)
+		}
+	}
+}
+
+func TestNormalizeClassicTransmissionRequestNames(t *testing.T) {
+	requireNormalizedKeys(t, "session_set", map[string]interface{}{
+		"speed_limit_down":   100,
+		"seed_ratio_limit":   2.0,
+		"idle_seeding_limit": 60,
+	}, map[string]interface{}{
+		"speed-limit-down":    100,
+		"seedRatioLimit":      2.0,
+		"idle-seeding-limit":  60,
+	})
+
+	requireNormalizedKeys(t, "torrent_add", map[string]interface{}{
+		"download_dir":        "/downloads",
+		"peer_limit":          80,
+		"bandwidth_priority":  1,
+		"files_wanted":        []interface{}{0.0, 1.0},
+		"sequential_download": true,
+	}, map[string]interface{}{
+		"download-dir":        "/downloads",
+		"peer-limit":          80,
+		"bandwidthPriority":   1,
+		"files-wanted":        []interface{}{0.0, 1.0},
+		"sequentialDownload":  true,
+	})
+
+	requireNormalizedKeys(t, "torrent_set", map[string]interface{}{
+		"peer_limit":          80,
+		"download_limit":      1024,
+		"tracker_list":        "https://tracker.example/announce",
+		"sequential_download": true,
+	}, map[string]interface{}{
+		"peer-limit":          80,
+		"downloadLimit":       1024,
+		"trackerList":         "https://tracker.example/announce",
+		"sequentialDownload":  true,
+	})
+
+	requireNormalizedKeys(t, "torrent_get", map[string]interface{}{
+		"fields": []string{"hash_string", "download_dir", "file_count", "peer_limit", "primary_mime_type", "tracker_list"},
+	}, map[string]interface{}{
+		"fields": []string{"hashString", "downloadDir", "file-count", "peer-limit", "primary-mime-type", "trackerList"},
+	})
+
+	requireNormalizedKeys(t, "session_get", map[string]interface{}{
+		"fields": []string{"version", "rpc_version_semver", "download_dir", "seed_ratio_limit"},
+	}, map[string]interface{}{
+		"fields": []string{"version", "rpc-version-semver", "download-dir", "seedRatioLimit"},
+	})
+}
+
 func TestClient_LoginUsesTransmissionSessionAndBasicAuth(t *testing.T) {
 	server, calls := newTransmissionRPCServer(t, func(call capturedRPC) any {
-		if call.Method != "session_get" {
-			t.Fatalf("method = %q, want session_get", call.Method)
+		if call.Method != "session-get" {
+			t.Fatalf("method = %q, want session-get", call.Method)
 		}
 		if !strings.HasPrefix(call.Auth, "Basic ") {
 			t.Fatalf("missing basic auth header")
@@ -173,13 +237,13 @@ func TestClient_LoginUsesTransmissionSessionAndBasicAuth(t *testing.T) {
 	if len(*calls) != 1 {
 		t.Fatalf("rpc calls = %d, want 1", len(*calls))
 	}
-	requireJSONStringSlice(t, (*calls)[0].Params, "fields", []string{"version", "rpc_version_semver", "rpc_version", "download_dir"})
+	requireJSONStringSlice(t, (*calls)[0].Params, "fields", []string{"version", "rpc-version-semver", "rpc-version", "download-dir"})
 }
 
 func TestClient_LoginAcceptsClassicTransmissionResponse(t *testing.T) {
 	server, calls := newClassicTransmissionRPCServer(t, func(call capturedRPC) any {
-		if call.Method != "session_get" {
-			t.Fatalf("method = %q, want session_get", call.Method)
+		if call.Method != "session-get" {
+			t.Fatalf("method = %q, want session-get", call.Method)
 		}
 		if !strings.HasPrefix(call.Auth, "Basic ") {
 			t.Fatalf("missing basic auth header")
@@ -216,8 +280,8 @@ func TestClient_LoginAcceptsClassicTransmissionResponse(t *testing.T) {
 
 func TestClient_GetTorrentsMapsTransmissionFields(t *testing.T) {
 	server, _ := newTransmissionRPCServer(t, func(call capturedRPC) any {
-		if call.Method != "torrent_get" {
-			t.Fatalf("method = %q, want torrent_get", call.Method)
+		if call.Method != "torrent-get" {
+			t.Fatalf("method = %q, want torrent-get", call.Method)
 		}
 		return map[string]any{
 			"torrents": []map[string]any{
@@ -269,8 +333,8 @@ func TestClient_GetTorrentsMapsTransmissionFields(t *testing.T) {
 
 func TestClient_GetTorrentsAcceptsClassicCamelCaseFields(t *testing.T) {
 	server, _ := newClassicTransmissionRPCServer(t, func(call capturedRPC) any {
-		if call.Method != "torrent_get" {
-			t.Fatalf("method = %q, want torrent_get", call.Method)
+		if call.Method != "torrent-get" {
+			t.Fatalf("method = %q, want torrent-get", call.Method)
 		}
 		return map[string]any{
 			"torrents": []map[string]any{
@@ -343,8 +407,8 @@ func TestClient_SetGroupLabelsAndCommentUseTorrentSet(t *testing.T) {
 		t.Fatalf("methods = %d, want 3", len(methods))
 	}
 	for _, call := range methods {
-		if call.Method != "torrent_set" {
-			t.Fatalf("method = %q, want torrent_set", call.Method)
+		if call.Method != "torrent-set" {
+			t.Fatalf("method = %q, want torrent-set", call.Method)
 		}
 		requireJSONStringSlice(t, call.Params, "ids", []string{"abc123"})
 	}
@@ -357,13 +421,13 @@ func TestClient_AddTagsPreservesExistingTransmissionLabels(t *testing.T) {
 	var setCall capturedRPC
 	server, _ := newTransmissionRPCServer(t, func(call capturedRPC) any {
 		switch call.Method {
-		case "torrent_get":
+		case "torrent-get":
 			return map[string]any{
 				"torrents": []map[string]any{
 					{"hash_string": "ABC123", "labels": []string{"old"}},
 				},
 			}
-		case "torrent_set":
+		case "torrent-set":
 			setCall = call
 			return nil
 		default:
