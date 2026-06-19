@@ -1,0 +1,13 @@
+﻿:::warning[Docker: Local Filesystem Access]
+Several qui-Transmission features require access to the same filesystem paths that Transmission uses (orphan scan, hardlinks, reflinks, automations).
+
+Mount the same paths Transmission uses - paths must match exactly:
+
+```yaml
+volumes:
+  - /config:/config
+  - /data/torrents:/data/torrents  # Must match Transmission's path
+```
+
+After mounting, enable **Local Filesystem Access** on each instance in qui-Transmission's Instance Settings.
+:::
